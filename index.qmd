@@ -1,90 +1,885 @@
 ---
-talk-title: "Title"
-talk-short-title: "{{< meta talk-title >}}"
-talk-subtitle: "Subtitle"
+talk-title: "Intro to epi forecasting"
+talk-short-title: "Epi forecasting"
+talk-subtitle: ""
 author: "Daniel J. McDonald"
-other-authors: ""
-repo-address: "dajmcdon/myspecial-talk"
-talk-date: "Venue -- dd Somemonth yyyy"
+other-authors: "VanML Biostatistics Workshop"
+repo-address: "dajmcdon/vanml-epifcast"
+talk-date: "23 February 2024"
 format: revealjs
 ---
 
-<!-- Set any of the above to "" to omit them -->
-
-<!-- Or adjust the formatting in _titleslide.qmd -->
 {{< include _titleslide.qmd >}}
 
 
 
-## Slides begin
+## Mathematical modelling of disease / epidemics is very old 
 
-## Callouts
+* [Daniel Bernoulli (1760)]{.tertiary} - studies inoculation against smallpox
 
-::: {.callout-note}
-You can use these. See <https://quarto.org/docs/authoring/callouts.html>
+* [John Snow (1855)]{.tertiary} - cholera epidemic in London tied to a water pump
+
+* [Ronald Ross (1902)]{.tertiary} - Nobel Prize in Medicine for work on malaria
+
+* [Kermack and McKendrick (1927-1933)]{.tertiary} - basic epidemic (mathematical) model
+
+![Source: Shiode, et al. "The mortality rates and the space-time patterns of John Snow’s cholera epidemic map." _Int J Health Geogr_ *14*, 21 (2015). ](https://media.springernature.com/full/springer-static/image/art%3A10.1186%2Fs12942-015-0011-y/MediaObjects/12942_2015_11_Fig1_HTML.gif?as=webp){height=400px fig-align="center"}
+
+## Forecasting is also old, but not that old
+
+### US CDC Flu Challenge began in 2013
+
+![](https://www.cdc.gov/flu/images/weekly/flu-forecasting.jpg?_=29012)
+
+
+> CDC’s Influenza Division has collaborated each flu season with [external researchers]{.tertiary} on flu forecasting. <br>CDC has provided forecasting teams data, relevant public health forecasting targets, and forecast accuracy metrics while [teams submit their forecasts]{.tertiary}, which are based on a variety of methods and data sources, each week.
+
+
+
+## The Covid-19 Pandemic
+
+* CDC pivoted their Flu Challenge to Covid-19 in June 2020
+
+* Similar efforts in Germany and then Europe
+
+::: flex
+::: w-50
+![](https://covid19forecasthub.org/images/forecast-hub-logo_DARKBLUE.png){height=200px fig-align="center"}
 :::
 
-## Final slide {.smaller}
+::: w-50
+![](https://covid19forecasthub.eu/images/logo.svg){height=300px fig-align="center"}
+:::
+:::
 
 
-### Thanks:
+* [Nothing similar for Canada]{.tertiary}
+
+* CDC now has Flu and Covid simultaneously
+
+## Why the Forecast Hubs?
+
+* Collect public forecasts in a standard format and visualize
+
+* Used internally by CDC
+
+* Turns out, most individual teams' forecasts are ... not great
+
+* Combine submissions into an "Ensemble"
+
+![<https://doi.org/10.1371/journal.pcbi.1007486>](gfx/pnas.png)
+
+
+
+## Outline {.f1}
+
+
+[0.]{.tertiary} [History and background]{.silver}
+
+[1.]{.tertiary} Terminology and data
+
+[2.]{.tertiary} Standard forecasting models
+
+[3.]{.tertiary} Building up a Time Series Forecaster
+
+[4.]{.tertiary} Forecast evaluation
+
+[5.]{.tertiary} Hubs and an advertisement
+
+## Some terminology
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+#| out-height: "450px"
+Stat406::bccovid |>
+  ggplot(aes(date, cases)) + 
+  geom_line(colour = primary) +
+  geom_vline(xintercept = ymd("2023-04-15"), colour = secondary,
+             linewidth = 2) +
+  labs(y = "BC Covid-19 cases", x = "Date") +
+  scale_y_continuous(expand = expansion(c(0, NA)))
+```
+
+* As reported on 30 August 2023. Would look different as of 15 April 2023
+* Counts for a Date are updated --- "backfill" --- as time passes
+
+## Revision triangle, Outpatient visits in WA 2022
+
+```{r}
+#| fig-width: 8
+#| fig-height: 4
+source("code/revision-triangle.R")
+cowplot::plot_grid(p1, p2)
+```
+
+## {background-image="gfx/bc-hosp-admissions.png" background-size="auto 90%"}
+
+## Data objects
+
+```{r epi-archive}
+#| echo: true
+epiprocess::archive_cases_dv_subset$DT |> as_epi_df()
+```
+
+
+## "Finalized" data
+
+* Counts are revised as time proceeds
+* Want to know the "final" value, often not available until months later
+
+Forecasting
+: At time $t$, predict the final value for time $t+h$, $h > 0$
+
+<br>
+
+Nowcasting
+: At time $t$, predict the final value for time $t$
+
+<br>
+
+Backcasting
+: At time $t$, predict the final value for time $t-h$, $h < 0$
+
+## Aside on Nowcasting
+
+* When Epi's say "nowcasting", they typically mean "estimate the time-varying instantaneous reproduction number, $R_t$"
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+#| out-height: "400px"
+library(rtestim)
+p1 <- Stat406::bccovid |>
+  ggplot(aes(date, cases)) + 
+  geom_line(colour = primary) +
+  geom_vline(xintercept = ymd("2023-04-15"), colour = secondary,
+             linewidth = 2) +
+  labs(y = "BC Covid-19 cases", x = "Date") +
+  scale_y_continuous(expand = expansion(c(0, NA)))
+bc_rt <- estimate_rt(Stat406::bccovid$cases, x = Stat406::bccovid$date, 
+                     lambda = c(1e6, 1e5))
+p2 <- plot(confband(bc_rt, lambda = 1e5)) + 
+  coord_cartesian(ylim = c(0.5, 2)) +
+  scale_y_continuous(expand = expansion(0))
+cowplot::plot_grid(p1, p2)
+```
+
+* My group built [`{rtestim}`](https://dajmcdon.github.io/rtestim) doing for this nonparametrically
+* See also [`{epinow2}`](https://epiforecasts.io/EpiNow2/) and [`{epinowcast}`](https://package.epinowcast.org) for flexible (but slow) Bayesian methods based on compartmental models
+
+## Mathematical setup
+
+* Suppose today is time $t$
+
+* Let $y_i$ denote a series of interest observed at times $i=1,\ldots, t$.
+
+* Let $0< h_1 < \cdots < h_k$ be a collection of forecast horizons.
+
+::: {.callout-important icon="false"}
+## Our goal
+
+* Produce point forecasts for the finalized values of $y_{t+h_1}, \ldots, y_{t+h_k}$.
+* Accompany these with prediction intervals
+
+:::
+
+* We also have access to $p$ other time series 
+$x_{ij},\; i=1,\ldots,t, \; j = 1,\ldots,p$
+that we can use to help forecast $y_{t+h}$.
+
+* All may be subject to revisions.
+
+
+
+# 2. Standard forecasting models
+
+
+## Models used for COVID-19 hospitalizations
+
+```{r hosp-summary}
+#| fig-width: 9
+#| fig-height: 5
+hosp_summary <- readRDS("data/hosp-summary.rds")
+ggplot(hosp_summary, aes(x = forecast_date, y = forecaster, fill = forecaster)) +
+  geom_tile() +
+  xlab("Date") + ylab("") +
+  scale_fill_viridis_d() +
+  scale_x_date(limits = ymd(c("2022-01-01", NA)), date_labels = "%b %Y") +
+  theme(legend.position = "none")
+```
+
+## Quick overview of types
+
+1. [SIR / Compartmental model]{.tertiary}
+1. [Deep Learning / ML]{.secondary}
+1. [Time series]{.primary}
+
+::: flex
+::: w-50
+* BPagano - [SIR]{.tertiary}
+* CMU - [Time Series]{.primary}
+* Colorado (4 versions) - [SEIR, different scenarios]{.tertiary}
+* Georgia Tech - [Deep learning...]{.secondary}
+* IHME (rarely) - [SEIR]{.tertiary}
+* Johns Hopkins (3 in Applied Physics) - [SEIR]{.tertiary}, [Time series]{.primary}, ensemble
+* Johns Hopkins (other, Infection Dynamics) - [SEIR]{.tertiary}
+
+:::
+
+::: w-50
+* Dean Karlen (Physicist at UVic) - [Compartmental]{.tertiary}
+* MOBS-Gleam - [Agent based mobility model]{.tertiary}
+* USC - [SEIR]{.tertiary}
+* UVA - Ensemble of [VAR]{.primary}, [LSTM]{.secondary}, [SEIR]{.tertiary}
+* Prolix - "Offsets obtained by correlations, best linear approximation of reproduction rates (using vaccination  approximation) by least euclidean distance, and linear prediction."
+
+:::
+:::
+
+## Focus: time series type
+
+### Pros:
+
+* "easy" to implement
+* trivial to incorporate other features (waste water, google searches, [auxilliary indicators](https://www.pnas.org/doi/full/10.1073/pnas.2111453118))
+* massive variety of "engines" (linear models, random forests, boosting, etc.)
+* can be very fast to fit
+* don't need access to epidemiological parameters
+* pivot to categorical forecasts (classification) or similar
+* can easily borrow information across locations
+
+### Cons:
+
+* doesn't directly use epi dynamics
+* can't "pull out" things like $R_t$
+* no mechanism to interrogate scenarios
+
+## Personal hot takes
+
+1. Contrast between "scenario modelling" and "forecasting"
+2. Novel pathogens make SIR-type extremely difficult
+3. SIR-type requires lots of hand-tuning
+4. For typical season (influenza) SIR "gets the dynamics"
+5. You really need to address the revision behaviour
+6. Very difficult for Epi's at STLTs to implement these
+7. I'm a statistician, so Time Series is much easier for me
+
+## Comparison of real-time performance
+
+* Deep learning isn't worth it.
+* [Hospitalization due to Covid]{.primary}; all [US states]{.secondary}, [weekly]{.tertiary}, from [January 2021 to December 2022]{.fourth-colour}
+
+```{r smooth-forecaster}
+#| fig-width: 9
+#| fig-height: 4
+source("code/hosp-score-processing.R")
+ggplot(scores_summary |> filter(anon == "other"),
+       aes(ahead, relwis, color = anon, group = forecaster)) +
+  geom_line() +
+  geom_line(data = scores_summary |> filter(anon != "other"), linewidth = 1.25) +
+  geom_hline(yintercept = 1, color = "black", linewidth = 1.5) +
+  ylab("Geometric Mean of WIS\n relative to baseline") +
+  coord_cartesian(ylim = c(0.5, 1.5)) +
+  xlab("Forecast horizon (days ahead)") +
+  scale_x_continuous(breaks = c(1, 7, 14, 21, 28)) +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  scale_color_manual(values = cols)
+```
+
+# 3. Building a time series forecaster
+
+## Philosophy of forecasting 
+
+::: {.fragment .fade-in-then-semi-out}
+
+We should build up modular components
+
+Be able to add layers of complexity sequentially
+
+:::
+
+::: {.fragment .fade-in-then-semi-out}
+
+1. [Preprocessor:]{.primary} do things to the data before model training
+2. [Trainer:]{.primary} train a model on data, resulting in an object
+3. [Forecast:]{.primary} make forecasts, using a fitted model object
+4. [Postprocessor:]{.primary} do things to the predictions before returning
+
+:::
+
+
+## Examples of preprocessing
+
+::: {.fragment .fade-in-then-semi-out}
+
+### EDA type stuff
+
+1. Making locations commensurate (per capita scaling)
+1. Dealing with revisions (do some nowcasting?)
+1. Detecting and removing outliers
+1. Imputing or removing missing data
+
+:::
+
+::: {.fragment .fade-in-then-semi-out}
+
+### Feature engineering
+
+1. Creating lagged predictors
+1. Day of Week effects
+1. Rolling averages for smoothing (!!!)
+1. Lagged differences
+1. Growth rates instead of raw signals
+1. The sky's the limit
+
+:::
+
+## Calculating growth rates
+
+```{r growth-rates}
+#| cache: true
+#| fig-width: 8
+#| fig-height: 4
+library(geomtextpath)
+edfgr <- case_death_rate_subset |>
+  filter(geo_value %in% c("ny", "ca")) |>
+  mutate(geo_value = case_when(geo_value == "ny" ~ "New York", TRUE ~ "California")) |>
+  group_by(geo_value) |>
+  mutate(gr_cases = growth_rate(time_value, case_rate, method = "trend_filter"))
+
+gr1 <- ggplot(edfgr, aes(time_value, case_rate, label = geo_value)) +
+  geom_textline(aes(colour = geo_value, hjust = geo_value)) +
+  scale_hjust_manual(values = c(.2, .9)) +
+  scale_colour_manual(values = c(primary, tertiary)) +
+  scale_x_date(minor_breaks = "month", date_labels = "%b %Y") +
+  labs(x = "Date", y = "Covid cases per 100K inhabitants") +
+  theme(legend.position = "none") +
+  scale_y_continuous(expand = expansion(c(0, NA)))
+
+gr2 <- ggplot(edfgr, aes(x = time_value, y = gr_cases)) +
+  geom_hline(yintercept = 0, size = 1.25) +
+  geom_textline(aes(color = geo_value, hjust = geo_value, label = geo_value)) +
+  scale_hjust_manual(values = c(0, .5)) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  scale_color_manual(values = c(primary, tertiary)) +
+  theme(legend.position = "none") +
+  scale_x_date(minor_breaks = "month", date_labels = "%b %Y") +
+  labs(x = "Date", y = "Growth rate")
+cowplot::plot_grid(gr1, gr2, nrow = 1)
+```
+
+## Outlier detection
+
+```{r outliers}
+#| fig-width: 8
+#| fig-height: 4
+edfo <- incidence_num_outlier_example
+detection_methods <- tribble(
+  ~method, ~args, ~abbr,
+  "rm", list(
+    detect_negatives = TRUE,
+    detection_multiplier = 2.5
+  ), "rm",
+  "stl", list(
+    detect_negatives = TRUE,
+    detection_multiplier = 2.5,
+    seasonal_period = 7
+  ), "stl_seasonal",
+  "stl", list(
+    detect_negatives = TRUE,
+    detection_multiplier = 2.5,
+    seasonal_period = NULL
+  ), "stl_nonseasonal"
+)
+edfo <- edfo |>
+  group_by(geo_value) |>
+  mutate(
+    outlier_info =
+      detect_outlr(
+        x = time_value, y = cases,
+        methods = detection_methods,
+        combiner = "median"
+      )
+  ) |>
+  ungroup() |>
+  unnest(outlier_info) |>
+  mutate(cases_corrected = combined_replacement) |>
+  select(geo_value, time_value, cases, cases_corrected)
+edfo |>
+  pivot_longer(starts_with("cases")) |>
+  mutate(
+    name = case_when(
+      name == "cases_corrected" ~ "corrected",
+      TRUE ~ "original"
+    ),
+    name = as.factor(name),
+    name = fct_relevel(name, "original")
+  ) |>
+  ggplot(aes(x = time_value)) +
+  geom_line(aes(y = value, color = name)) +
+  scale_color_manual(values = c(primary, tertiary), name = "") +
+  geom_hline(yintercept = 0) +
+  facet_wrap(vars(geo_value), scales = "free_y", nrow = 1) +
+  scale_x_date(minor_breaks = "month", date_labels = "%b %Y") +
+  labs(x = "Date", y = "Reported COVID-19 cases")
+```
+
+
+
+## `{epipredict}` 
+
+::: {.incremental}
+
+* Canned forecasters that work out-of-the-box
+* Backtest using the versioned data
+* Easily create features
+* Modify / transform / calibrate forecasts 
+* Quickly pivot to new tasks
+* Highly customizable for advanced users 
+
+:::
+
+::: {.fragment .fade-in}
+A very specialized plug-in to [`{tidymodels}`](https://tidymodels.org)
+:::
+
+
+## Canned forecasters that work out of the box.
+
+But, you can adjust [a lot]{.secondary} of options
+
+### We currently provide:
+
+- Baseline flat-line forecaster
+- Autoregressive-type forecaster
+- Autoregressive-type classifier
+
+
+
+## Canned forecasters that work out of the box.
+
+But, you can adjust [a lot]{.secondary} of options
+
+### Flatline forecaster (CDC Baseline)
+
+For each location, predict 
+$$\hat{y}_{j,\ t+h} = y_{j,\ t}$$
+
+
+Prediction intervals are determined using the quantiles of the residuals
+
+```{r flatline}
+#| fig-height: 3
+#| fig-width: 6
+source("code/plot_bands.R")
+train <- case_death_rate_subset |>
+  filter(time_value < "2021-12-01")
+o4 <- map(1:4 * 7, ~flatline_forecaster(
+  train, outcome = "death_rate", 
+  args_list = flatline_args_list(
+    ahead = .x, n_training = 60, 
+    quantile_levels = c(.05, .1, .25, .75, .9, .95),
+  )) |> magrittr::extract2("predictions")) |>
+    list_rbind()
+
+ggplot(o4 |> filter(geo_value == "wa")) |>
+  plot_bands(o4 |> filter(geo_value == "wa"), fill = tertiary) +
+  geom_vline(xintercept = ymd("2021-11-30"), linetype = "dashed") +
+  geom_line(
+    data = case_death_rate_subset |> filter(time_value > ymd("2021-10-30"), geo_value == "wa"),
+            mapping = aes(x = time_value, y = death_rate)) +
+  geom_line(mapping = aes(x = target_date, y = .pred), colour = primary,
+            linewidth = 1.5) +
+  ylab("Covid deaths in Washington\nper 100K population") + xlab("Date") +
+  scale_y_continuous(expand = expansion()) +
+  coord_cartesian(ylim = c(0, 0.75))
+```
+
+
+## Canned forecasters that work out of the box.
+
+But, you can adjust [a lot]{.secondary} of options
+
+### AR forecaster
+
+Use an AR model with an extra feature, e.g.:
+$$\hat{y}_{j,\ t+h} = \mu + a_0 y_{j,\ t} + a_7 y_{j,\ t-7} + b_0 x_{j,\ t} + b_7 x_{j,\ t-7}$$
+
+
+Here, all predictions (point forecast and intervals) use Quantile Regression
+
+```{r arx-wa}
+#| fig-height: 3
+#| fig-width: 6
+o4ar <- map(1:4 * 7, ~arx_forecaster(
+  train, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  trainer = quantile_reg(),
+  args_list = arx_args_list(
+    ahead = .x, n_training = 60, 
+    quantile_levels = c(.05, .1, .25, .75, .9, .95),
+  )) |> magrittr::extract2("predictions")) |>
+    list_rbind()
+
+ggplot(o4ar |> filter(geo_value == "wa")) |>
+  plot_bands(o4ar |> filter(geo_value == "wa"), fill = tertiary) +
+  geom_vline(xintercept = ymd("2021-11-30"), linetype = "dashed") +
+  geom_line(
+    data = case_death_rate_subset |> 
+      filter(time_value > ymd("2021-10-30"), geo_value == "wa"),
+    mapping = aes(x = time_value, y = death_rate)) +
+  geom_line(
+    mapping = aes(x = target_date, y = .pred), colour = primary,
+    linewidth = 1.5) +
+  ylab("Covid deaths in Washington\nper 100K population") + xlab("Date") +
+  scale_y_continuous(expand = expansion()) +
+  coord_cartesian(ylim = c(0, 0.75))
+```
+
+
+
+## Basic autoregressive forecaster
+
+* Predict `death_rate`, 1 week ahead, with `0,7,14` day lags of `cases` and `deaths`. 
+* Use `lm` for estimation. Also create intervals.
+
+```{r canned}
+#| echo: true
+#| warning: false
+edf <- case_death_rate_subset # grab some built-in data
+canned <- arx_forecaster(
+  epi_data = edf, 
+  outcome = "death_rate", 
+  predictors = c("case_rate", "death_rate")
+)
+```
+
+The output is a model object that could be reused in the future, along with the predictions for 7 days from now.
+
+## Adjust lots of built-in options
+
+```{r canned-w-args}
+#| echo: true
+#| eval: false
+#| cache: true
+#| code-line-numbers: "|4|5|7|8-12|13|14"
+rf <- arx_forecaster(
+  epi_data = edf, 
+  outcome = "death_rate", 
+  predictors = c("case_rate", "death_rate", "fb-survey"),
+  trainer = parsnip::rand_forest(mode = "regression"), # use {ranger}
+  args_list = arx_args_list(
+    ahead = 14, # 2-week horizon
+    lags = list(
+      case_rate = c(0:4, 7, 14), 
+      death_rate = c(0, 7, 14), 
+      `fb-survey` = c(0:7, 14)
+    ),
+    quantile_levels = c(0.01, 0.025, 1:19 / 20, 0.975, 0.99), # 23 ForecastHub quantiles
+    quantile_by_key = "geo_value" # vary noise model by location
+  )
+)
+```
+
+
+
+## Do (almost) anything manually
+
+```{r}
+#| echo: true
+#| eval: false
+#| code-line-numbers: "1-6|8-13|15-17|19-26"
+# A preprocessing "recipe" that turns raw data into features / response
+r <- epi_recipe(edf) |>
+  step_epi_lag(case_rate, lag = c(0, 1, 2, 3, 7, 14)) |>
+  step_epi_lag(death_rate, lag = c(0, 7, 14)) |>
+  step_epi_ahead(death_rate, ahead = 14) |>
+  step_epi_naomit()
+
+# A postprocessing routine describing what to do to the predictions
+f <- frosting() |>
+  layer_predict() |>
+  layer_threshold(.pred, lower = 0) |> # predictions / intervals should be non-negative
+  layer_add_target_date() |>
+  layer_add_forecast_date()
+
+# Bundle up the preprocessor, training engine, and postprocessor
+# We use quantile regression
+ewf <- epi_workflow(r, quantile_reg(quantile_levels = c(.1, .5, .9)), f)
+
+# Fit it to data (we could fit this to ANY data that has the same format)
+trained_ewf <- ewf |> fit(edf)
+
+# examines the recipe to determine what we need to make the prediction
+latest <- get_test_data(r, edf)
+
+# we could make predictions using the same model on ANY test data
+preds <- trained_ewf |> predict(new_data = latest)
+```
+
+
+## Visualize a result for 1 forecast date, 2 locations
+
+```{r show-smoothed}
+#| cache: true
+#| echo: true
+#| fig-width: 8
+#| fig-height: 4
+#| code-fold: true
+edf <- case_death_rate_subset
+fd <- as.Date("2021-11-30")
+geos <- c("wa", "ca")
+h <- 1:28
+
+tedf <- edf |> filter(time_value >= fd)
+# use most recent 3 months for training
+edf <- edf |> filter(time_value < fd, time_value >= fd - 90L)
+
+rec <- epi_recipe(edf) |>
+  step_epi_lag(case_rate, lag = c(0, 7, 14, 21)) |>
+  step_epi_lag(death_rate, lag = c(0, 7, 14)) |>
+  step_epi_ahead(death_rate, ahead = h)
+
+f <- frosting() |>
+  layer_predict() |>
+  layer_unnest(.pred) |>
+  layer_naomit(distn) |>
+  layer_add_forecast_date() |>
+  layer_threshold(distn)
+
+ee <- smooth_quantile_reg(
+  quantile_levels = c(.05, .1, .25, .5, .75, .9, .95), outcome_locations = h
+)
+
+ewf <- epi_workflow(rec, ee, f)
+  
+the_fit <- ewf |> fit(edf)
+
+latest <- get_test_data(rec, edf, fill_locf = TRUE) |> 
+  filter(geo_value %in% geos)
+
+preds <- predict(the_fit, new_data = latest) |>
+  mutate(forecast_date = fd, target_date = fd + ahead) |>
+  select(geo_value, target_date, .pred_distn = distn) |>
+  mutate(.pred = median(.pred_distn))
+  
+ggplot(preds) |>
+  plot_bands(preds, fill = tertiary) +
+  geom_vline(xintercept = ymd("2021-11-30"), linetype = "dashed") +
+  geom_line(
+    data = case_death_rate_subset |> 
+      filter(time_value > ymd("2021-09-30"), geo_value %in% geos),
+    mapping = aes(x = time_value, y = death_rate)) +
+  geom_line(
+    mapping = aes(x = target_date, y = .pred), colour = primary,
+    linewidth = 1.5) +
+  facet_wrap(~geo_value) +
+  ylab("Covid deaths per 100K population") + xlab("Date") +
+  scale_y_continuous(expand = expansion(), limits = c(0, .75))
+```
+
+
+# 4. Evaluating forecasts
+
+## Community standard forecast format, FluSight Ensemble
+
+* Choose a target signal, [relevant to PH]{.primary}, incident hospitalizations
+* Usually submit (every week), for weekly or daily horizons, up to a month out
+* Point forecast and a set of quantiles `c(0.01, 0.025, 1:19 / 20, 0.975, 0.99)`
+* Could produce categorical forecasts ("way up", "up", "steady", "down")
+* Historically, could submit samples from a distribution
+
+```{r flusight-ens}
+#| cache: true
+source("code/flusight-ens.R")
+ggplot(ens) |>
+  plot_bands(ens, fill = tertiary) +
+  geom_vline(xintercept = ymd("2024-01-06"), linetype = "dashed") +
+  geom_line(
+    data = us,
+    mapping = aes(x = time_value, y = value), color = "#999999") +
+  geom_line(aes(x = target_date, y = .pred), color = primary) +
+  geom_line(data = us_as_of,
+            mapping = aes(x = time_value, y = value)) +
+  ylab("US weekly flu hospitalizations") + xlab("Date") +
+  scale_x_date(date_labels = "%b %Y") +
+  scale_y_continuous(expand = expansion(), limits = c(0, NA))
+```
+
+## Headline "score"
+
+[Weighted Interval Score (Bracher et al., 2021)](https://doi.org/10.1371/journal.pcbi.1008618)
+
+$$
+\textrm{WIS}(F, Y) = \sum_{\alpha} \big\{\alpha(u_\alpha - \ell_\alpha) + 2 \cdot 
+\textrm{dist} (Y,\ [\ell_\alpha,\ u_\alpha])\big\}
+$$
+
+* Calculated for each target (forecast date, location, horizon)
+
+* For each Interval:
+    1. Width of interval.
+    1. Under prediction (AE to the top)
+    1. Over prediction (AE to the bottom)
+
+* Weighted average using probability content
+
+* Mathematically equivalent to an average of quantile losses
+
+* Discrete approximation of CRPS
+
+* Figures from <http://reichlab.io/flusight-eval/>
+
+## FluSight 2 week WIS
+
+![](gfx/wis-2wk.png){fig-align="center"}
+
+
+## Overprediction and underprediction
+
+![](gfx/wis-components.png){fig-align="center"}
+
+## Calibration
+
+![](gfx/coverage.png){fig-align="center"}
+
+## Comparing across disparate targets
+
+* Target = ([forecast date]{.primary}, [horizon]{.secondary}, [location]{.tertiary})
+* Everything so far is "per target"
+* Better (in my view), to normalize by "difficulty"
+* Forecasters that do well when it's "easy" aren't adding anything
+
+<hr>
+
+::: flex
+::: w-50
+![](gfx/compare-states-to-hub.png){fig-align="center"}
+:::
+
+::: w-50
+* Scale by baseline
+* Aggregate with [geometric mean]{.primary}
+* A non-parametric space-time multiplier
+* See <https://doi.org/10.1073/pnas.2111453118>
+:::
+:::
+# 5. Hubs and an advertisement
+
+## Flu Forecast Hub
+
+* The US CDC runs the FluSight Modelling Hub
+* Scenario modelling hub (US) for Covid
+* Covid19forecast Hub (US)
+* German Flu Hospitalization Hub
+* European and Germany + Poland Covid Hubs
+
+::: flex
+::: w-50
+![](https://covid19forecasthub.org/images/forecast-hub-logo_DARKBLUE.png){height=200px fig-align="center"}
+:::
+
+::: w-50
+![](https://covid19forecasthub.eu/images/logo.svg){height=300px fig-align="center"}
+:::
+:::
+
+
+
+### Where's Canada?
+
+## Why the hubs?
+
+* Encourage standard data formats
+* Provide forecasts to public health
+* Create Ensembles of participating teams with [much]{.primary} better performance
+* Create communities of forecasters
+
+### Goal: Create a Hub for Canada to begin in September
+
+* Need target data
+* Need teams to participate
+
+## Target data?
+
+[FluWatch Weekly Reports](https://www.canada.ca/en/public-health/services/publications/diseases-conditions/fluwatch/2023-2024/week-6-february-4-february-10-2024.html)
+
+![](https://www.canada.ca/content/dam/phac-aspc/images/services/publications/diseases-conditions/fluwatch/2023-2024/week-6-february-4-february-10-2024/fig2-eng.jpg){fig-align="center"}
+
+* Format is ick.
+* We'll try to make this available. 
+* And it's history.
+* Some is versioned
+
+## So you're going to participate?!
+
+Some suggestions if you use ML models
+
+1. Careful with backfill
+2. Best to combine across locations (probably internationally as well)
+3. Use other signals
+4. To produce weekly forecasts, train on trailing averages (7x the data)
+5. Quantile regression
+6. Correct outliers / anomalies
+7. Examine your forecasts before submitting
+8. Regularly evaluate performance
+
+## Thanks
+
 
 ```{r qr-codes}
 #| include: false
 #| fig-format: png
 # Code to generate QR codes to link to any external sources
-qrdat <- function(text, ecl = c("L", "M", "Q", "H")) {
-  x <- qrcode::qr_code(text, ecl)
-  n <- nrow(x)
-  s <- seq_len(n)
-  tib <- tidyr::expand_grid(x = s, y = rev(s))
-  tib$z <- c(x)
-  tib
-}
-qr1 <- qrdat("https://cmu-delphi.github.io/epiprocess/")
+source("code/make-qr.R")
+qr1 <- qrdat("https://dajmcdon.github.io/vanml-epifcast/")
 qr2 <- qrdat("https://cmu-delphi.github.io/epipredict/")
-ggplot(qr1, aes(x, y, fill = z)) +
+qr1 <- ggplot(qr1, aes(x, y, fill = z)) +
   geom_raster() +
-  ggtitle("{epiprocess}") +
+  ggtitle("This talk") +
   coord_equal(expand = FALSE) +
   scale_fill_manual(values = c("white", "black"), guide = "none") +
   theme_void(base_size = 18) +
-  theme(plot.title = element_text(hjust = .5))
-ggplot(qr2, aes(x, y, fill = z)) +
+  theme(plot.title = element_text(hjust = .5, colour = primary))
+qr2 <- ggplot(qr2, aes(x, y, fill = z)) +
   geom_raster() +
   labs(title = "{epipredict}") +
   coord_equal(expand = FALSE) +
   scale_fill_manual(values = c("white", "black"), guide = "none") +
   theme_void(base_size = 18) +
-  theme(plot.title = element_text(hjust = .5))
+  theme(plot.title = element_text(hjust = .5, colour = primary))
 ```
 
-:::: {.columns}
-::: {.column width="50%"}
+::: flex
+::: w-50
 - The whole [CMU Delphi Team](https://delphi.cmu.edu/about/team/) (across many institutions)
-- Optum/UnitedHealthcare, Change Healthcare.
+- Optum/United Healthcare, Change Healthcare.
 - Google, Facebook, Amazon Web Services.
 - Quidel, SafeGraph, Qualtrics.
 - Centers for Disease Control and Prevention.
 - Council of State and Territorial Epidemiologists
+- NSERC
 :::
 
-::: {.column width="50%"}
+::: w-50
 
-![](gfx/qr-epiprocess.png){width="300px"}
-![](gfx/qr-epipredict.png){width="300px"}
+```{r show-qr}
+#| dev: png
+cowplot::plot_grid(qr1, NULL, qr2, rel_widths = c(5, 1, 5), nrow = 1)
+```
+
 
 :::
 
-::::
+:::
 
 ::: {layout-row=1 fig-align="center"}
-![](gfx/delphi.jpg){height="100px"}
-![](gfx/berkeley.jpg){height="100px"}
-![](gfx/cmu.jpg){height="100px"}
-![](gfx/ubc.jpg){width="250px"}
-![](gfx/usc.jpg){width="250px"}
-![](gfx/stanford.jpg){width="250px"}
+![](gfx/delphi.jpg){height="150px"}
+![](gfx/berkeley.jpg){height="150px"}
+![](gfx/cmu.jpg){height="150px"}
+![](gfx/ubc.jpg){width="300px"}
+![](gfx/usc.jpg){width="300px"}
+![](gfx/stanford.jpg){width="300px"}
 :::
 
 

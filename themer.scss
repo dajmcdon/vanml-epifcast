@@ -17,6 +17,9 @@ $presentation-heading-color: $primary;
 $presentation-font-size-root: 36px;
 
 $link-color: $primary;
+$code-block-font-size: 0.75em;
+// $code-block-bg: #eee;
+// $code-block-border-color: $primary;
 
 /*-- scss:rules --*/
 
@@ -24,3 +27,63 @@ $link-color: $primary;
 .secondary {color: $secondary;}
 .tertiary {color: $tertiary;}
 .fourth-colour {color: $fourth-colour;}
+
+
+ul {
+ 	list-style: none; /* Remove default bullets */
+}
+
+ol li::marker {color: $primary;}
+
+ul li::marker {
+	color: $primary;
+}
+
+dt {
+  color: $primary;
+}
+
+/* Make callout blocks a bit larger */
+.reveal .callout.callout-style-simple .callout-body,
+.reveal .callout.callout-style-default .callout-body {
+  font-size: 1.5em;
+}
+.reveal .callout.callout-style-simple div.callout-title,
+.reveal .callout.callout-style-default div.callout-title {
+  font-size: 1.2em;
+}
+
+.reveal .callout.callout-style-default .callout-icon::before,
+.reveal .callout.callout-style-simple .callout-icon::before {
+  height: 2.5rem;
+  width: 2.5rem;
+  background-size: 2.5rem 2.5rem;
+}
+
+.reveal .callout.callout-titled .callout-icon::before {
+  margin-top: 1.75rem;
+}
+
+.reveal .cell-output pre code {
+  padding-top: 12px;
+  max-height: 700px;
+}
+
+.reveal pre.sourceCode code {
+  max-height: 750px;
+}
+
+/*
+.reveal pre {
+  border-left-style: solid;
+  background-color: $body-color;
+  // border-color: $code-block-border-color;
+}
+.reveal pre code {
+  border-left-style: solid;
+  // border-color: $code-block-border-color;
+  // background-color: $code-block-bg;
+  color: $body-color;
+}
+
+*/

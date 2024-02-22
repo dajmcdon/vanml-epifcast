@@ -10,7 +10,9 @@ secondary <- "#f9c80e"
 tertiary <- "#2a76dd"
 fourth_colour <- "#311847"
 library(epiprocess)
+library(epipredict)
 suppressMessages(library(tidyverse))
+theme_set(theme_bw())
 x <- archive_cases_dv_subset
 x_latest <- epix_as_of(x, max_version = max(x$DT$version))
 self_max = max(x$DT$version)
@@ -54,7 +56,7 @@ snapshots_all |>
 
 :::
 ::: w-80
-## {{< meta talk-title >}} {background-image="gfx/cover-art-1.svg" background-position="bottom"}
+## {{< meta talk-title >}} {background-image="gfx/cover-art-1.svg" .f1}
 
 ### {{< meta talk-subtitle >}}
 
