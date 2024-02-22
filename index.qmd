@@ -92,6 +92,7 @@ format: revealjs
 #| fig-width: 9
 #| fig-height: 3
 #| out-height: "450px"
+#| label: bc-cases
 Stat406::bccovid |>
   ggplot(aes(date, cases)) + 
   geom_line(colour = primary) +
@@ -109,6 +110,7 @@ Stat406::bccovid |>
 ```{r}
 #| fig-width: 8
 #| fig-height: 4
+#| label: revision-triangle
 source("code/revision-triangle.R")
 cowplot::plot_grid(p1, p2)
 ```
@@ -149,6 +151,7 @@ Backcasting
 #| fig-width: 9
 #| fig-height: 3
 #| out-height: "400px"
+#| label: nowcasting
 library(rtestim)
 p1 <- Stat406::bccovid |>
   ggplot(aes(date, cases)) + 
