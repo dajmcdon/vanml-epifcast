@@ -405,7 +405,8 @@
 <p><br></p>
 <h4 id="meta-author">Daniel J. McDonald</h4>
 <p>VanML Biostatistics Workshop</p>
-<p>23 February 2024</p>
+<p>23 February 2024<br>
+<a href="https://dajmcdon.github.io/vanml-epifcast/" class="uri">https://dajmcdon.github.io/vanml-epifcast/</a></p>
 </section>
 </div>
 </section>
@@ -480,16 +481,8 @@
 </section>
 <section id="some-terminology" class="slide level2">
 <h2>Some terminology</h2>
-<div class="cell" data-layout-align="center">
-<div class="cell-output-display">
-<div class="quarto-figure quarto-figure-center">
-<figure>
-<p><img data-src="gfx/bc-cases-1.svg" height="450"></p>
-</figure>
-</div>
-</div>
-</div>
-<ul>
+
+<img data-src="gfx/bc-cases-1.svg" class="r-stretch quarto-figure-center"><ul>
 <li>As reported on 30 August 2023. Would look different as of 15 April 2023</li>
 <li>Counts for a Date are updated — “backfill” — as time passes</li>
 </ul>
@@ -529,11 +522,13 @@
 </div>
 </section>
 <section id="finalized-data" class="slide level2">
-<h2>“Finalized” data</h2>
+<h2>Finalized data</h2>
 <ul>
 <li>Counts are revised as time proceeds</li>
-<li>Want to know the “final” value, often not available until months later</li>
+<li>Want to know the <span class="primary">final</span> value</li>
+<li>Often not available until weeks/months later</li>
 </ul>
+<p><br></p>
 <dl>
 <dt>Forecasting</dt>
 <dd>
@@ -595,7 +590,7 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 </div>
 </div>
 <ul>
-<li><p>We also have access to <span class="math inline">\(p\)</span> other time series <span class="math inline">\(x_{ij},\; i=1,\ldots,t, \; j = 1,\ldots,p\)</span> that we can use to help forecast <span class="math inline">\(y_{t+h}\)</span>.</p></li>
+<li><p>We also have access to <span class="math inline">\(p\)</span> other time series <span class="math inline">\(x_{ij},\; i=1,\ldots,t, \; j = 1,\ldots,p\)</span></p></li>
 <li><p>All may be subject to revisions.</p></li>
 </ul>
 </section>
@@ -644,30 +639,34 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 <ul>
 <li>“easy” to implement</li>
 <li>trivial to incorporate other features (waste water, google searches, <a href="https://www.pnas.org/doi/full/10.1073/pnas.2111453118">auxilliary indicators</a>)</li>
-<li>massive variety of “engines” (linear models, random forests, boosting, etc.)</li>
+<li>massive variety of <a href="https://parsnip.tidymodels.org/articles/parsnip.html">models and engines</a> (linear models, random forests, boosting, etc.)</li>
 <li>can be very fast to fit</li>
-<li>don’t need access to epidemiological parameters</li>
+<li>don’t need to know epidemiological parameters (delay distributions, contact rates)</li>
 <li>pivot to categorical forecasts (classification) or similar</li>
 <li>can easily borrow information across locations</li>
 </ul>
 <h3 id="cons">Cons:</h3>
 <ul>
 <li>doesn’t directly use epi dynamics</li>
-<li>can’t “pull out” things like <span class="math inline">\(R_t\)</span></li>
+<li>can’t access things like <span class="math inline">\(R_t\)</span></li>
 <li>no mechanism to interrogate scenarios</li>
 </ul>
 </section>
 <section id="personal-hot-takes" class="slide level2">
 <h2>Personal hot takes</h2>
-<ol type="1">
-<li>Contrast between “scenario modelling” and “forecasting”</li>
-<li>Novel pathogens make SIR-type extremely difficult</li>
-<li>SIR-type requires lots of hand-tuning</li>
-<li>For typical season (influenza) SIR “gets the dynamics”</li>
-<li>You really need to address the revision behaviour</li>
-<li>Very difficult for Epi’s at STLTs to implement these</li>
-<li>I’m a statistician, so Time Series is much easier for me</li>
-</ol>
+<ul>
+<li>🐶 Contrast between <span class="tertiary">scenario modelling</span> and <span class="primary">forecasting</span></li>
+<li>🐶 You really need to address the revision behaviour<br>
+</li>
+<li>👍 For typical season (influenza) SIR-type gets the dynamics<br>
+</li>
+<li>👎 Novel pathogens make SIR-type extremely difficult<br>
+</li>
+<li>👎 SIR-type requires lots of hand-tuning, and slow to fit<br>
+</li>
+<li>👎 Very difficult for Epi’s at STLTs to implement SIR from scratch</li>
+<li>👍 I’m a statistician, so Time Series is much easier for me</li>
+</ul>
 </section>
 <section id="comparison-of-real-time-performance" class="slide level2">
 <h2>Comparison of real-time performance</h2>
@@ -682,17 +681,17 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 <h1>3. Building a time series forecaster</h1>
 
 </section>
-<section id="philosophy-of-forecasting" class="slide level2">
-<h2>Philosophy of forecasting</h2>
+<section id="philosophy-of-forecasting-general-predictive-modelling" class="slide level2">
+<h2>Philosophy of forecasting (general predictive modelling)</h2>
 <div class="fragment fade-in-then-semi-out">
 <p>We should build up modular components</p>
-<p>Be able to add layers of complexity sequentially</p>
+<p>Be able to add/remove layers of complexity sequentially</p>
 </div>
 <div class="fragment fade-in-then-semi-out">
 <ol type="1">
 <li><span class="primary">Preprocessor:</span> do things to the data before model training</li>
 <li><span class="primary">Trainer:</span> train a model on data, resulting in an object</li>
-<li><span class="primary">Forecast:</span> make forecasts, using a fitted model object</li>
+<li><span class="primary">Forecast:</span> make forecasts, using an estimated model object</li>
 <li><span class="primary">Postprocessor:</span> do things to the predictions before returning</li>
 </ol>
 </div>
@@ -730,8 +729,19 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 <h2>Outlier detection</h2>
 
 <img data-src="gfx/outliers-1.svg" class="r-stretch quarto-figure-center"></section>
+<section id="examples-of-postprocessing" class="slide level2 incremental">
+<h2>Examples of postprocessing</h2>
+<ul>
+<li>Impute missing features</li>
+<li>Nowcast current values of features</li>
+<li>Bootstrap to get predictive intervals</li>
+<li>Invert scaling or other transforms</li>
+<li>Threshold predictions, <code>[0, max_population]</code></li>
+</ul>
+</section>
 <section id="epipredict" class="slide level2">
 <h2><code>{epipredict}</code></h2>
+<p><a href="https://cmu-delphi.github.io/epipredict" class="uri">https://cmu-delphi.github.io/epipredict</a></p>
 <div>
 <ul>
 <li class="fragment">Canned forecasters that work out-of-the-box</li>
@@ -980,32 +990,56 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 <h1>5. Hubs and an advertisement</h1>
 
 </section>
-<section id="flu-forecast-hub" class="slide level2">
-<h2>Flu Forecast Hub</h2>
-<ul>
-<li>The US CDC runs the FluSight Modelling Hub</li>
-<li>Scenario modelling hub (US) for Covid</li>
-<li>Covid19forecast Hub (US)</li>
-<li>German Flu Hospitalization Hub</li>
-<li>European and Germany + Poland Covid Hubs</li>
-</ul>
+<section id="forecast-hubs" class="slide level2">
+<h2>Forecast Hubs</h2>
 <div class="flex">
 <div class="w-50">
-<div class="quarto-figure quarto-figure-center">
-<figure>
-<p><img data-src="https://covid19forecasthub.org/images/forecast-hub-logo_DARKBLUE.png" height="200"></p>
-</figure>
-</div>
+<p><span class="primary f1">Current</span></p>
+<ul>
+<li>The US CDC runs
+<ul>
+<li>the FluSight Modelling Hub</li>
+<li>RSV Hub (just started)</li>
+</ul></li>
+<li>RespiCast - European CDC</li>
+<li>CDPH - West Nile Virus (coming in May)</li>
+<li>CFA runs Covid Hub (US)</li>
+<li>CFA starting an Rt Hub?</li>
+</ul>
 </div>
 <div class="w-50">
+<p><span class="primary f1">Past</span></p>
+<ul>
+<li>Scenario Modelling Hub (US) for Covid</li>
+<li>German Flu Hospitalization Hub</li>
+<li>European Covid Hub</li>
+<li>Germany + Poland Covid Hub</li>
+</ul>
+</div>
+</div>
+<div class="flex">
+<div class="w-40">
 <div class="quarto-figure quarto-figure-center">
 <figure>
-<p><img data-src="https://covid19forecasthub.eu/images/logo.svg" height="300"></p>
+<p><img data-src="https://covid19forecasthub.org/images/forecast-hub-logo_DARKBLUE.png"></p>
+</figure>
+</div>
+</div>
+<div class="w-20">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="https://covid19forecasthub.eu/images/logo.svg"></p>
+</figure>
+</div>
+</div>
+<div class="w-40">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="gfx/respicast.png"></p>
 </figure>
 </div>
 </div>
 </div>
-<h3 id="wheres-canada">Where’s Canada?</h3>
 </section>
 <section id="why-the-hubs" class="slide level2">
 <h2>Why the hubs?</h2>
@@ -1034,15 +1068,15 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 </section>
 <section id="so-youre-going-to-participate" class="slide level2">
 <h2>So you’re going to participate?!</h2>
-<p>Some suggestions if you use ML models</p>
+<p>Some suggestions for any type of forecasting</p>
 <ol type="1">
-<li>Careful with backfill</li>
-<li>Best to combine across locations (probably internationally as well)</li>
-<li>Use other signals</li>
-<li>To produce weekly forecasts, train on trailing averages (7x the data)</li>
-<li>Quantile regression</li>
+<li>Be cognizant of backfill</li>
 <li>Correct outliers / anomalies</li>
-<li>Examine your forecasts before submitting</li>
+<li>Combine across locations (probably internationally as well)</li>
+<li>Incorporate curated auxilliary signals (throwing in everything isn’t great)</li>
+<li>To produce weekly forecasts, train on trailing 7-day averages (7x the data)</li>
+<li>Use quantile regression or nonparametric prediction intervals</li>
+<li>Examine your forecasts!</li>
 <li>Regularly evaluate performance</li>
 </ol>
 </section>
@@ -1051,13 +1085,13 @@ At time <span class="math inline">\(t\)</span>, predict the final value for time
 <div class="flex">
 <div class="w-50">
 <ul>
-<li>The whole <a href="https://delphi.cmu.edu/about/team/">CMU Delphi Team</a> (across many institutions)</li>
-<li>Optum/United Healthcare, Change Healthcare.</li>
-<li>Google, Facebook, Amazon Web Services.</li>
-<li>Quidel, SafeGraph, Qualtrics.</li>
+<li>The <a href="https://delphi.cmu.edu/about/team/">CMU Delphi Team</a></li>
 <li>Centers for Disease Control and Prevention.</li>
 <li>Council of State and Territorial Epidemiologists</li>
 <li>NSERC</li>
+<li>Optum/United Healthcare, Change Healthcare.</li>
+<li>Google, Facebook, Amazon Web Services.</li>
+<li>Quidel, SafeGraph, Qualtrics.</li>
 </ul>
 </div>
 <div class="w-50">

@@ -5,7 +5,9 @@ talk-subtitle: ""
 author: "Daniel J. McDonald"
 other-authors: "VanML Biostatistics Workshop"
 repo-address: "dajmcdon/vanml-epifcast"
-talk-date: "23 February 2024"
+talk-date: |
+  | 23 February 2024
+  | <https://dajmcdon.github.io/vanml-epifcast/>
 format: revealjs
 ---
 
@@ -90,14 +92,15 @@ format: revealjs
 
 ```{r}
 #| fig-width: 9
-#| fig-height: 3
-#| out-height: "450px"
+#| fig-height: 3.5
 #| label: bc-cases
 Stat406::bccovid |>
   ggplot(aes(date, cases)) + 
+  geom_vline(xintercept = ymd(c("2023-04-15", "2023-08-30")), 
+             colour = c(secondary, tertiary),
+             linewidth = 1.5) +
   geom_line(colour = primary) +
-  geom_vline(xintercept = ymd("2023-04-15"), colour = secondary,
-             linewidth = 2) +
+  scale_x_date(limits = ymd(c("2020-01-01", "2023-10-01"))) +
   labs(y = "BC Covid-19 cases", x = "Date") +
   scale_y_continuous(expand = expansion(c(0, NA)))
 ```
@@ -125,10 +128,13 @@ epiprocess::archive_cases_dv_subset$DT |> as_epi_df()
 ```
 
 
-## "Finalized" data
+## Finalized data
 
 * Counts are revised as time proceeds
-* Want to know the "final" value, often not available until months later
+* Want to know the [final]{.primary} value 
+* Often not available until weeks/months later
+
+<br>
 
 Forecasting
 : At time $t$, predict the final value for time $t+h$, $h > 0$
@@ -189,7 +195,6 @@ cowplot::plot_grid(p1, p2)
 
 * We also have access to $p$ other time series 
 $x_{ij},\; i=1,\ldots,t, \; j = 1,\ldots,p$
-that we can use to help forecast $y_{t+h}$.
 
 * All may be subject to revisions.
 
@@ -246,27 +251,27 @@ ggplot(hosp_summary, aes(x = forecast_date, y = forecaster, fill = forecaster)) 
 
 * "easy" to implement
 * trivial to incorporate other features (waste water, google searches, [auxilliary indicators](https://www.pnas.org/doi/full/10.1073/pnas.2111453118))
-* massive variety of "engines" (linear models, random forests, boosting, etc.)
+* massive variety of [models and engines](https://parsnip.tidymodels.org/articles/parsnip.html) (linear models, random forests, boosting, etc.)
 * can be very fast to fit
-* don't need access to epidemiological parameters
+* don't need to know epidemiological parameters (delay distributions, contact rates)
 * pivot to categorical forecasts (classification) or similar
 * can easily borrow information across locations
 
 ### Cons:
 
 * doesn't directly use epi dynamics
-* can't "pull out" things like $R_t$
+* can't access things like $R_t$
 * no mechanism to interrogate scenarios
 
 ## Personal hot takes
 
-1. Contrast between "scenario modelling" and "forecasting"
-2. Novel pathogens make SIR-type extremely difficult
-3. SIR-type requires lots of hand-tuning
-4. For typical season (influenza) SIR "gets the dynamics"
-5. You really need to address the revision behaviour
-6. Very difficult for Epi's at STLTs to implement these
-7. I'm a statistician, so Time Series is much easier for me
+* 🐶 Contrast between [scenario modelling]{.tertiary} and [forecasting]{.primary}
+* 🐶 You really need to address the revision behaviour  
+* 👍 For typical season (influenza) SIR-type gets the dynamics  
+* 👎 Novel pathogens make SIR-type extremely difficult  
+* 👎 SIR-type requires lots of hand-tuning, and slow to fit  
+* 👎 Very difficult for Epi's at STLTs to implement SIR from scratch
+* 👍 I'm a statistician, so Time Series is much easier for me
 
 ## Comparison of real-time performance
 
@@ -292,13 +297,13 @@ ggplot(scores_summary |> filter(anon == "other"),
 
 # 3. Building a time series forecaster
 
-## Philosophy of forecasting 
+## Philosophy of forecasting (general predictive modelling)
 
 ::: {.fragment .fade-in-then-semi-out}
 
 We should build up modular components
 
-Be able to add layers of complexity sequentially
+Be able to add/remove layers of complexity sequentially
 
 :::
 
@@ -306,7 +311,7 @@ Be able to add layers of complexity sequentially
 
 1. [Preprocessor:]{.primary} do things to the data before model training
 2. [Trainer:]{.primary} train a model on data, resulting in an object
-3. [Forecast:]{.primary} make forecasts, using a fitted model object
+3. [Forecast:]{.primary} make forecasts, using an estimated model object
 4. [Postprocessor:]{.primary} do things to the predictions before returning
 
 :::
@@ -425,12 +430,21 @@ edfo |>
   geom_hline(yintercept = 0) +
   facet_wrap(vars(geo_value), scales = "free_y", nrow = 1) +
   scale_x_date(minor_breaks = "month", date_labels = "%b %Y") +
-  labs(x = "Date", y = "Reported COVID-19 cases")
+  labs(x = "Date", y = "Reported COVID-19 cases") +
+  theme(legend.position = c(.075, .8), legend.background = element_rect(fill = NA), legend.key = element_rect(fill = NA))
 ```
 
+## Examples of postprocessing {.incremental}
 
+* Impute missing features
+* Nowcast current values of features
+* Bootstrap to get predictive intervals
+* Invert scaling or other transforms
+* Threshold predictions, `[0, max_population]`
 
 ## `{epipredict}` 
+
+<https://cmu-delphi.github.io/epipredict>
 
 ::: {.incremental}
 
@@ -769,27 +783,53 @@ $$
 :::
 # 5. Hubs and an advertisement
 
-## Flu Forecast Hub
-
-* The US CDC runs the FluSight Modelling Hub
-* Scenario modelling hub (US) for Covid
-* Covid19forecast Hub (US)
-* German Flu Hospitalization Hub
-* European and Germany + Poland Covid Hubs
+## Forecast Hubs
 
 ::: flex
 ::: w-50
-![](https://covid19forecasthub.org/images/forecast-hub-logo_DARKBLUE.png){height=200px fig-align="center"}
+
+[Current]{.primary .f1}
+
+* The US CDC runs 
+    - the FluSight Modelling Hub
+    - RSV Hub (just started)
+* RespiCast - European CDC
+* CDPH - West Nile Virus (coming in May)
+* CFA runs Covid Hub (US)
+* CFA starting an Rt Hub?
+
 :::
 
 ::: w-50
-![](https://covid19forecasthub.eu/images/logo.svg){height=300px fig-align="center"}
+
+[Past]{.primary .f1}
+
+* Scenario Modelling Hub (US) for Covid
+* German Flu Hospitalization Hub
+* European Covid Hub
+* Germany + Poland Covid Hub
+
 :::
+
 :::
 
 
+::: flex
 
-### Where's Canada?
+::: w-40
+![](https://covid19forecasthub.org/images/forecast-hub-logo_DARKBLUE.png){fig-align="center"}
+:::
+
+::: w-20
+![](https://covid19forecasthub.eu/images/logo.svg){fig-align="center"}
+:::
+
+::: w-40
+![](gfx/respicast.png){fig-align="center"}
+:::
+
+:::
+
 
 ## Why the hubs?
 
@@ -816,16 +856,16 @@ $$
 
 ## So you're going to participate?!
 
-Some suggestions if you use ML models
+Some suggestions for any type of forecasting
 
-1. Careful with backfill
-2. Best to combine across locations (probably internationally as well)
-3. Use other signals
-4. To produce weekly forecasts, train on trailing averages (7x the data)
-5. Quantile regression
-6. Correct outliers / anomalies
-7. Examine your forecasts before submitting
-8. Regularly evaluate performance
+1. Be cognizant of backfill
+1. Correct outliers / anomalies
+1. Combine across locations (probably internationally as well)
+1. Incorporate curated auxilliary signals (throwing in everything isn't great)
+1. To produce weekly forecasts, train on trailing 7-day averages (7x the data)
+1. Use quantile regression or nonparametric prediction intervals
+1. Examine your forecasts!
+1. Regularly evaluate performance
 
 ## Thanks
 
@@ -855,13 +895,13 @@ qr2 <- ggplot(qr2, aes(x, y, fill = z)) +
 
 ::: flex
 ::: w-50
-- The whole [CMU Delphi Team](https://delphi.cmu.edu/about/team/) (across many institutions)
-- Optum/United Healthcare, Change Healthcare.
-- Google, Facebook, Amazon Web Services.
-- Quidel, SafeGraph, Qualtrics.
+- The [CMU Delphi Team](https://delphi.cmu.edu/about/team/)
 - Centers for Disease Control and Prevention.
 - Council of State and Territorial Epidemiologists
 - NSERC
+- Optum/United Healthcare, Change Healthcare.
+- Google, Facebook, Amazon Web Services.
+- Quidel, SafeGraph, Qualtrics.
 :::
 
 ::: w-50

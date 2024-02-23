@@ -28,6 +28,8 @@ snapshots <- snapshots_all %>%
 ```{r}
 #| include: false
 #| label: cover-art
+#| fig-width: 8
+#| fig-height: 4.5
 snapshots_all |>
   arrange(geo_value, version, time_value) |>
   # filter(!latest) |>
@@ -35,12 +37,13 @@ snapshots_all |>
   geom_line(
     aes(color = factor(version), group = interaction(geo_value, version))
   ) + 
-  # geom_vline(aes(color = factor(version), xintercept = version), lty = 3, 
-  #           size = 0.5) +
-  scale_x_date(minor_breaks = "month", labels = NULL) +
+  scale_y_continuous(expand = expansion()) +
+  scale_x_date(minor_breaks = "month", labels = NULL, 
+               expand = expansion()) +
   labs(x = "", y = "") + 
   theme_void() +
-  coord_cartesian(xlim = as.Date(c("2020-10-01", NA)), ylim = c(-5, NA)) +
+  coord_cartesian(xlim = as.Date(c("2020-10-01", "2021-11-01")), 
+                  ylim = c(-3, NA)) +
   scale_color_viridis_d(option = "B", end = .8) +
   theme(legend.position = "none", panel.background = element_blank()) +
   geom_line(
