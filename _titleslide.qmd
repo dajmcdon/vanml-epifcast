@@ -58,7 +58,7 @@ snapshots_all |>
 ::: w-20
 
 :::
-::: w-80
+::: w-60
 ## {{< meta talk-title >}} {background-image="gfx/cover-art-1.svg" .f1}
 
 ### {{< meta talk-subtitle >}}
@@ -69,6 +69,11 @@ snapshots_all |>
 {{< meta other-authors >}}
 
 {{< meta talk-date >}}
+:::
+
+::: w-20
+
+![](gfx/qr-this-talk.png){fig-align="center" height="300px"}
 :::
 :::
 
